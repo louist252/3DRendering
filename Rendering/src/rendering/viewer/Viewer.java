@@ -25,7 +25,6 @@ public class Viewer {
                     g2.fillRect(0, 0, getWidth(), getHeight());
 
                     // rendering magic will happen here
-                    
                 }
             };
         pane.add(renderPanel, BorderLayout.CENTER);
