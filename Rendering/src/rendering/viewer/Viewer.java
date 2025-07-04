@@ -3,6 +3,7 @@ package rendering.viewer;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.*;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
 public class Viewer {
@@ -12,12 +13,12 @@ public class Viewer {
         pane.setLayout(new BorderLayout());
 
         // slider to control horizontal rotation
-        JSlider headingSlider = new JSlider(0, 360, 180);
-        pane.add(headingSlider, BorderLayout.SOUTH);
+        JSlider horizontalSlider = new JSlider(-180, 180, 0);
+        pane.add(horizontalSlider, BorderLayout.SOUTH);
 
         // slider to control vertical rotation
-        JSlider pitchSlider = new JSlider(SwingConstants.VERTICAL, -90, 90, 0);
-        pane.add(pitchSlider, BorderLayout.EAST);
+        JSlider verticalSlider = new JSlider(SwingConstants.VERTICAL, -90, 90, 0);
+        pane.add(verticalSlider, BorderLayout.EAST);
 
         // panel to display render results
         JPanel renderPanel = new JPanel() {
@@ -28,11 +29,12 @@ public class Viewer {
 
                     // rendering magic will happen here
                     
+                    // List of triangle to form the tetrahedron
                     ArrayList<Triangle> triangles = new ArrayList<Triangle>();
                     triangles.add(new Triangle(new Vertex(100, 100, 100),
-			                            new Vertex(-100, -100, 100),
-			                            new Vertex(-100, 100, -100),
-			                            Color.WHITE));
+                            new Vertex(-100, -100, 100),
+                            new Vertex(-100, 100, -100),
+                            Color.WHITE));
                     triangles.add(new Triangle(new Vertex(100, 100, 100),
 			                            new Vertex(-100, -100, 100),
 			                            new Vertex(100, -100, -100),
@@ -45,26 +47,71 @@ public class Viewer {
 			                            new Vertex(100, -100, -100),
 			                            new Vertex(-100, -100, 100),
 			                            Color.BLUE));
+                   
+                    
+                    /*
+                     * Transformation matrices:
+                     * XZ: [cosθ  0  -sinθ
+                     *       0    1    0
+                     *      sinθ  0   cosθ]
+                     *      
+                     * YZ: [1    0     0
+                     * 		0   cosθ  sinθ 
+                     *      0  -sinθ  cosθ]
+                     *      
+                     * Don't need to care about XY rotation,
+                     * because you can achieve by combining the other 2
+                     */		 
+                    
+                    double hori = Math.toRadians(horizontalSlider.getValue());
+                    Matrix3D horiTransform = new Matrix3D(new double[] {
+                    		Math.cos(hori), 0, -Math.sin(hori),
+                    		0, 1, 0,
+                    		Math.sin(hori), 0, Math.cos(hori)});
+                   double vert = Math.toRadians(verticalSlider.getValue());
+                   Matrix3D vertTransform = new Matrix3D(new double[] {
+                		   1, 0, 0,
+                		   0, Math.cos(vert), Math.sin(vert),
+                		   0, -Math.sin(vert), Math.cos(vert)});
+                   
+                   Matrix3D transform = horiTransform.multi(vertTransform);
                     
                     g2.translate(getWidth() / 2, getHeight() / 2);
                     g2.setColor(Color.WHITE);
                     for (Triangle t : triangles) {
-                    	Path2D path = new Path2D.Double();
-                    	path.moveTo(t.v1.x, t.v1.y);
-                    	path.lineTo(t.v2.x, t.v2.y);
-                    	path.lineTo(t.v3.x, t.v3.y);
-                    	path.closePath();
-                    	g2.draw(path);
+                        Vertex v1 = transform.transform(t.v1);
+                        Vertex v2 = transform.transform(t.v2);
+                        Vertex v3 = transform.transform(t.v3);
+                        Path2D path = new Path2D.Double();
+                        path.moveTo(v1.x, v1.y);
+                        path.lineTo(v2.x, v2.y);
+                        path.lineTo(v3.x, v3.y);
+                        path.closePath();
+                        g2.draw(path);
                     }
-                    
-                    
+                    		
                 }
             };
         pane.add(renderPanel, BorderLayout.CENTER);
+        
+        horizontalSlider.addChangeListener(e -> renderPanel.repaint());
+        verticalSlider.addChangeListener(e -> renderPanel.repaint());
 
         frame.setSize(400, 400);
         frame.setVisible(true);
     }
+	
+	public static Color getShade(Color color, double shade) {
+	    double redLinear = Math.pow(color.getRed(), 2.4) * shade;
+	    double greenLinear = Math.pow(color.getGreen(), 2.4) * shade;
+	    double blueLinear = Math.pow(color.getBlue(), 2.4) * shade;
+
+	    int red = (int) Math.pow(redLinear, 1/2.4);
+	    int green = (int) Math.pow(greenLinear, 1/2.4);
+	    int blue = (int) Math.pow(blueLinear, 1/2.4);
+
+	    return new Color(red, green, blue);
+	}
 	
 	
 	/**
@@ -128,8 +175,8 @@ public class Viewer {
 						Multiply the row index starting from 0 by 3 helps "move down"
 						a row in the array. Same deal with col index, "move over" a column
 						 */
-						result[row * 3 + col] = this.values[row * 3 + i] // Go through each val in a row of values matrix
-											+ other.values[col + i * 3]; // Go through each val in a col of other matrix
+						result[row * 3 + col] += this.values[row * 3 + i] // Go through each val in a row of values matrix
+											* other.values[i * 3 + col]; // Go through each val in a col of other matrix
 					}
 				}
 			}
