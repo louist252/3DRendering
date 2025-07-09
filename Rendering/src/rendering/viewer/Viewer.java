@@ -62,12 +62,12 @@ public class Viewer {
                      * Don't need to care about XY rotation,
                      * because you can achieve by combining the other 2
                      */		 
-                    
-                    double hori = Math.toRadians(horizontalSlider.getValue());
-                    Matrix3D horiTransform = new Matrix3D(new double[] {
-                    		Math.cos(hori), 0, -Math.sin(hori),
-                    		0, 1, 0,
-                    		Math.sin(hori), 0, Math.cos(hori)});
+                   // Basically, math for rotation
+                   double hori = Math.toRadians(horizontalSlider.getValue());
+                   Matrix3D horiTransform = new Matrix3D(new double[] {
+                		   Math.cos(hori), 0, -Math.sin(hori),
+                		   0, 1, 0,
+                		   Math.sin(hori), 0, Math.cos(hori)});
                    double vert = Math.toRadians(verticalSlider.getValue());
                    Matrix3D vertTransform = new Matrix3D(new double[] {
                 		   1, 0, 0,
@@ -76,24 +76,58 @@ public class Viewer {
                    
                    Matrix3D transform = horiTransform.multi(vertTransform);
                     
-                    g2.translate(getWidth() / 2, getHeight() / 2);
-                    g2.setColor(Color.WHITE);
-                    for (Triangle t : triangles) {
-                        Vertex v1 = transform.transform(t.v1);
-                        Vertex v2 = transform.transform(t.v2);
-                        Vertex v3 = transform.transform(t.v3);
-                        Path2D path = new Path2D.Double();
-                        path.moveTo(v1.x, v1.y);
-                        path.lineTo(v2.x, v2.y);
-                        path.lineTo(v3.x, v3.y);
-                        path.closePath();
-                        g2.draw(path);
-                    }
-                    		
+                   // Rasterizing the image
+                   BufferedImage img = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);	
+                   
+                   for (Triangle t: triangles) {
+                	   Vertex v1 = transform.transform(t.v1);
+                	   Vertex v2 = transform.transform(t.v2);
+                	   Vertex v3 = transform.transform(t.v3);
+                	   
+                	   
+                	   	// Since we are not using Graphics2D anymore,
+                	    // we have to do translation manually
+                	   	// In other words, move the shape in the center of the screen
+                	    v1.x += getWidth() / 2;
+                	    v1.y += getHeight() / 2;
+                	    v2.x += getWidth() / 2;
+                	    v2.y += getHeight() / 2;
+                	    v3.x += getWidth() / 2;
+                	    v3.y += getHeight() / 2;
+                	    
+                	    // Get the bounding box of the triangle
+                	    int maxX = (int) Math.max(v1.x, Math.max(v2.x, v3.x));
+                	    int minX = (int) Math.min(v1.x, Math.min(v2.x, v3.x));
+                	    int maxY = (int) Math.max(v1.y, Math.max(v2.y, v3.y));
+                	    int minY = (int) Math.min(v1.y, Math.min(v2.y, v3.y));
+                	    
+                	    double triangleArea = (v1.y - v3.y) * (v2.x - v3.x) + (v2.y - v3.y) * (v3.x - v1.x);
+                	    
+                	    // Iterates over every pixel x, y
+        	    	    for (int y = minY; y <= maxY; y++) {
+        	    	        for (int x = minX; x <= maxX; x++) {
+        	    	        	
+        	    	            double b1 = 
+        	    	              ((y - v3.y) * (v2.x - v3.x) + (v2.y - v3.y) * (v3.x - x)) / triangleArea;
+        	    	            double b2 =
+        	    	              ((y - v1.y) * (v3.x - v1.x) + (v3.y - v1.y) * (v1.x - x)) / triangleArea;
+        	    	            double b3 =
+        	    	              ((y - v2.y) * (v1.x - v2.x) + (v1.y - v2.y) * (v2.x - x)) / triangleArea;
+        	    	            
+        	    	            // If the pixel is in the triangle, color it
+        	    	            if (b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1 && b3 >= 0 && b3 <= 1) {
+        	    	                img.setRGB(x, y, t.color.getRGB());
+        	    	            }
+        	    	        }
+        	    	    }
+                	    
+                   }
+                   g2.drawImage(img, 0, 0, null);
                 }
             };
         pane.add(renderPanel, BorderLayout.CENTER);
         
+        // Listeners to force redraw when drag the sliders
         horizontalSlider.addChangeListener(e -> renderPanel.repaint());
         verticalSlider.addChangeListener(e -> renderPanel.repaint());
 
