@@ -79,6 +79,12 @@ public class Viewer {
                    // Rasterizing the image
                    BufferedImage img = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);	
                    
+                   double[] zBuffer = new double[img.getWidth() * img.getHeight()];
+                   // initialize array with extremely far away depths
+                   for (int q = 0; q < zBuffer.length; q++) {
+                       zBuffer[q] = Double.NEGATIVE_INFINITY;
+                   }
+                   
                    for (Triangle t: triangles) {
                 	   Vertex v1 = transform.transform(t.v1);
                 	   Vertex v2 = transform.transform(t.v2);
@@ -94,6 +100,20 @@ public class Viewer {
                 	    v2.y += getHeight() / 2;
                 	    v3.x += getWidth() / 2;
                 	    v3.y += getHeight() / 2;
+                	    
+                	    Vertex ab = new Vertex(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z);
+                        Vertex ac = new Vertex(v3.x - v1.x, v3.y - v1.y, v3.z - v1.z);
+                        Vertex norm = new Vertex(
+                             ab.y * ac.z - ab.z * ac.y,
+                             ab.z * ac.x - ab.x * ac.z,
+                             ab.x * ac.y - ab.y * ac.x
+                        );
+                        double normalLength = Math.sqrt(norm.x * norm.x + norm.y * norm.y + norm.z * norm.z);
+                        norm.x /= normalLength;
+                        norm.y /= normalLength;
+                        norm.z /= normalLength;
+
+                        double angleCos = Math.abs(norm.z);
                 	    
                 	    // Get the bounding box of the triangle
                 	    int maxX = (int) Math.max(v1.x, Math.max(v2.x, v3.x));
@@ -116,7 +136,12 @@ public class Viewer {
         	    	            
         	    	            // If the pixel is in the triangle, color it
         	    	            if (b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1 && b3 >= 0 && b3 <= 1) {
-        	    	                img.setRGB(x, y, t.color.getRGB());
+        	    	            	double depth = b1 * v1.z + b2 * v2.z + b3 * v3.z;
+                                    int zIndex = y * img.getWidth() + x;
+                                    if (zBuffer[zIndex] < depth) {
+                                        img.setRGB(x, y, getShade(t.color, angleCos).getRGB());
+                                        zBuffer[zIndex] = depth;
+                                    }
         	    	            }
         	    	        }
         	    	    }
